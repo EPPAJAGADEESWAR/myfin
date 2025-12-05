@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Fixed / RD</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+
+		<div class="top-right-logout">
+			<button id="logoutBtn" class="logout-btn">Logout</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Fixed / Recurring Deposits</h1>
+				<p class="tagline">Move money from your account into FD or RD</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="depMessage" class="message"></div>
+
+			<!-- Tabs -->
+			<div style="display: flex; gap: 8px; margin-bottom: 12px;">
+				<button id="tabRd" class="btn primary"
+					style="flex: 1; font-size: 13px;">Open RD</button>
+				<button id="tabFd" class="btn secondary"
+					style="flex: 1; font-size: 13px;">Open FD</button>
+			</div>
+
+			<!-- Common form -->
+			<form id="depositForm" class="form-vertical">
+				<label>From Account ID <input type="number" id="accountId"
+					placeholder="Enter your main account ID" required>
+				</label> <label>Amount <input type="number" id="amount" step="0.01"
+					placeholder="Amount in INR" required>
+				</label> <label>Annual Interest Rate (%) <input type="number"
+					id="rate" step="0.1" placeholder="e.g. 7.5" required>
+				</label> <label>Tenure (months) <input type="number" id="months"
+					placeholder="e.g. 12" required>
+				</label>
+				<button type="submit" class="btn primary full-width" id="submitBtn">
+					Open Recurring Deposit</button>
+			</form>
+
+			<section class="summary-card" style="margin-top: 16px;">
+				<h3>Latest deposit summary</h3>
+				<div id="summaryEmpty">No RD / FD created yet.</div>
+				<div id="summaryData" style="display: none;">
+					<p>
+						<strong>Type:</strong> <span id="sType"></span>
+					</p>
+					<p>
+						<strong>Linked Account ID:</strong> <span id="sAccountId"></span>
+					</p>
+					<p>
+						<strong>Amount:</strong> ₹ <span id="sAmount"></span>
+					</p>
+					<p>
+						<strong>Rate:</strong> <span id="sRate"></span>%
+					</p>
+					<p>
+						<strong>Tenure:</strong> <span id="sMonths"></span> months
+					</p>
+					<p>
+						<strong>Status:</strong> <span id="sStatus"></span>
+					</p>
+				</div>
+			</section>
+
+			<div class="small-footer-links">
+				<a href="/customer/accounts">← Back to Dashboard</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+    const baseUrl = 'http://localhost:8081';
+
+    // ---- Logout ----
+    async function doLogout() {
+        try {
+            await fetch(baseUrl + '/customers/logout', { method: 'POST' });
+        } catch (e) {}
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('customerId');
+        window.location.href = '/home';
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', doLogout);
+    }
+
+    // ---- RD / FD tab state ----
+    let currentType = 'RD'; // or 'FD'
+
+    const tabRd = document.getElementById('tabRd');
+    const tabFd = document.getElementById('tabFd');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function setType(type) {
+        currentType = type;
+        if (type === 'RD') {
+            tabRd.classList.add('primary');
+            tabRd.classList.remove('secondary');
+            tabFd.classList.add('secondary');
+            tabFd.classList.remove('primary');
+            submitBtn.textContent = 'Open Recurring Deposit';
+        } else {
+            tabFd.classList.add('primary');
+            tabFd.classList.remove('secondary');
+            tabRd.classList.add('secondary');
+            tabRd.classList.remove('primary');
+            submitBtn.textContent = 'Open Fixed Deposit';
+        }
+    }
+
+    tabRd.addEventListener('click', () => setType('RD'));
+    tabFd.addEventListener('click', () => setType('FD'));
+
+    // default RD
+    setType('RD');
+
+    // ---- Form submit ----
+    const depMsg = document.getElementById('depMessage');
+    const depForm = document.getElementById('depositForm');
+
+    function showDepMessage(text, isError = false) {
+        depMsg.textContent = text;
+        depMsg.style.color = isError ? 'red' : 'green';
+    }
+
+    depForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            showDepMessage('Please login again. Token not found.', true);
+            return;
+        }
+
+        const accountId = document.getElementById('accountId').value;
+        const amount = document.getElementById('amount').value;
+        const rate = document.getElementById('rate').value;
+        const months = document.getElementById('months').value;
+
+        if (!accountId || !amount || !rate || !months ||
+            Number(amount) <= 0 || Number(rate) <= 0 || Number(months) <= 0) {
+            showDepMessage('Enter valid account ID, amount, rate and tenure.', true);
+            return;
+        }
+
+        let url;
+        if (currentType === 'RD') {
+            url = `${baseUrl}/accounts/${accountId}/transfer-to-rd?amount=${amount}&rate=${rate}&months=${months}`;
+        } else {
+            url = `${baseUrl}/accounts/${accountId}/transfer-to-fd?amount=${amount}&rate=${rate}&months=${months}`;
+        }
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                showDepMessage('Operation failed: ' + err, true);
+                return;
+            }
+
+            const data = await res.json(); // RecurringDeposit or FixedDeposit
+
+            document.getElementById('summaryEmpty').style.display = 'none';
+            document.getElementById('summaryData').style.display = 'block';
+
+            document.getElementById('sType').textContent = currentType;
+            document.getElementById('sAccountId').textContent = data.accountId || (data.account && data.account.id) || accountId;
+            document.getElementById('sAmount').textContent = data.amount;
+            document.getElementById('sRate').textContent = data.interestRate;
+            document.getElementById('sMonths').textContent = data.tenureMonths;
+            document.getElementById('sStatus').textContent = data.status || 'ACTIVE';
+
+            showDepMessage(`₹${amount} moved to ${currentType}.`);
+            depForm.reset();
+        } catch (err) {
+            showDepMessage('Error calling deposit API: ' + err, true);
+        }
+    });
+</script>
+
+</body>
+</html>

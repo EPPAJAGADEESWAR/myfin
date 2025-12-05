@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<title>MyFin – Deposit Money</title>
+	<link rel="stylesheet" href="/style.css">
+</head>
+
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+
+		<!-- TOP RIGHT LOGOUT BUTTON -->
+		<div class="top-right-logout">
+			<button id="logoutBtn" class="logout-btn">Logout</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Deposit</h1>
+				<p class="tagline">Add money to your MyFin account</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="depMessage" class="message"></div>
+
+			<form id="depositForm" class="form-vertical">
+				<label>Account ID
+					<input type="number" id="accountId" placeholder="Enter your account ID" required>
+				</label>
+				<label>Amount
+					<input type="number" id="amount" step="0.01" placeholder="Amount in INR" required>
+				</label>
+				<button type="submit" class="btn primary full-width">Deposit</button>
+			</form>
+
+			<section class="summary-card" style="margin-top:16px;">
+				<h3>Latest deposit summary</h3>
+				<div id="summaryEmpty">No deposit performed yet.</div>
+				<div id="summaryData" style="display:none;">
+					<p><strong>Account ID:</strong> <span id="sAccountId"></span></p>
+					<p><strong>Account Number:</strong> <span id="sAccountNumber"></span></p>
+					<p><strong>New Balance:</strong> ₹ <span id="sBalance"></span></p>
+					<p><strong>Status:</strong> <span id="sStatus"></span></p>
+				</div>
+			</section>
+
+			<div class="small-footer-links">
+				<a href="/customer/accounts">← Back to Dashboard</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+		const baseUrl = 'http://localhost:8081';
+
+		// ---- Logout setup (reuse) ----
+		async function doLogout() {
+			try {
+				await fetch(baseUrl + '/customers/logout', {method: 'POST'});
+			} catch (e) {
+				// ignore error
+			}
+			localStorage.removeItem('jwtToken');
+			localStorage.removeItem('customerId');
+			window.location.href = '/home';
+		}
+
+		const logoutBtn = document.getElementById('logoutBtn');
+		if (logoutBtn) {
+			logoutBtn.addEventListener('click', doLogout);
+		}
+
+		// ---- Deposit logic ----
+		const depMsg = document.getElementById('depMessage');
+		const depForm = document.getElementById('depositForm');
+
+		function showDepMessage(text, isError = false) {
+			depMsg.textContent = text;
+			depMsg.style.color = isError ? 'red' : 'green';
+		}
+
+		depForm.addEventListener('submit', async (e) => {
+			e.preventDefault();
+
+			const token = localStorage.getItem('jwtToken');
+			if (!token) {
+				showDepMessage('Please login again. Token not found.', true);
+				return;
+			}
+
+			const accountId = document.getElementById('accountId').value;
+			const amount = document.getElementById('amount').value;
+
+			if (!accountId || !amount || Number(amount) <= 0) {
+				showDepMessage('Enter a valid account ID and positive amount.', true);
+				return;
+			}
+
+			try {
+				const url = `${baseUrl}/accounts/${accountId}/deposit?amount=${amount}`;
+				const res = await fetch(url, {
+					method: 'POST',
+					headers: {
+						'Authorization': 'Bearer ' + token
+					}
+				});
+
+				if (!res.ok) {
+					const err = await res.text();
+					showDepMessage('Deposit failed: ' + err, true);
+					return;
+				}
+
+				const data = await res.json();  // AccountDto
+
+				document.getElementById('summaryEmpty').style.display = 'none';
+				document.getElementById('summaryData').style.display = 'block';
+
+				document.getElementById('sAccountId').textContent = data.accountId;
+				document.getElementById('sAccountNumber').textContent = data.accountNumber || '-';
+				document.getElementById('sBalance').textContent = data.balance;
+				document.getElementById('sStatus').textContent = data.status || 'ACTIVE';
+
+				showDepMessage(`₹${amount} deposited successfully.`);
+				depForm.reset();
+			} catch (err) {
+				showDepMessage('Error calling deposit API: ' + err, true);
+			}
+		});
+	</script>
+
+</body>
+
+</html>

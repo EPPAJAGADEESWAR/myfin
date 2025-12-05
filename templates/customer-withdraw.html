@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Withdraw Money</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+
+		<!-- TOP RIGHT LOGOUT BUTTON -->
+		<div class="top-right-logout">
+			<button id="logoutBtn" class="logout-btn">Logout</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Withdraw</h1>
+				<p class="tagline">Take money from your MyFin account</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="wdMessage" class="message"></div>
+
+			<form id="withdrawForm" class="form-vertical">
+				<label>Account ID <input type="number" id="accountId"
+					placeholder="Enter your account ID" required>
+				</label> <label>Amount <input type="number" id="amount" step="0.01"
+					placeholder="Amount in INR" required>
+				</label>
+				<button type="submit" class="btn secondary full-width">Withdraw</button>
+			</form>
+
+			<section class="summary-card" style="margin-top: 16px;">
+				<h3>Latest withdraw summary</h3>
+				<div id="summaryEmpty">No withdraw performed yet.</div>
+				<div id="summaryData" style="display: none;">
+					<p>
+						<strong>Account ID:</strong> <span id="sAccountId"></span>
+					</p>
+					<p>
+						<strong>Account Number:</strong> <span id="sAccountNumber"></span>
+					</p>
+					<p>
+						<strong>New Balance:</strong> ₹ <span id="sBalance"></span>
+					</p>
+					<p>
+						<strong>Status:</strong> <span id="sStatus"></span>
+					</p>
+				</div>
+			</section>
+
+			<div class="small-footer-links">
+				<a href="/customer/accounts">← Back to Dashboard</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+    const baseUrl = 'http://localhost:8081';
+
+    // ---- Logout setup ----
+    async function doLogout() {
+        try {
+            await fetch(baseUrl + '/customers/logout', { method: 'POST' });
+        } catch (e) {
+            // ignore error
+        }
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('customerId');
+        window.location.href = '/home';
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', doLogout);
+    }
+
+    // ---- Withdraw logic ----
+    const wdMsg = document.getElementById('wdMessage');
+    const wdForm = document.getElementById('withdrawForm');
+
+    function showWdMessage(text, isError = false) {
+        wdMsg.textContent = text;
+        wdMsg.style.color = isError ? 'red' : 'green';
+    }
+
+    wdForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            showWdMessage('Please login again. Token not found.', true);
+            return;
+        }
+
+        const accountId = document.getElementById('accountId').value;
+        const amount = document.getElementById('amount').value;
+
+        if (!accountId || !amount || Number(amount) <= 0) {
+            showWdMessage('Enter a valid account ID and positive amount.', true);
+            return;
+        }
+
+        try {
+            const url = `${baseUrl}/accounts/${accountId}/withdraw?amount=${amount}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                showWdMessage('Withdraw failed: ' + err, true);
+                return;
+            }
+
+            const data = await res.json();  // AccountDto
+
+            document.getElementById('summaryEmpty').style.display = 'none';
+            document.getElementById('summaryData').style.display = 'block';
+
+            document.getElementById('sAccountId').textContent = data.accountId;
+            document.getElementById('sAccountNumber').textContent = data.accountNumber || '-';
+            document.getElementById('sBalance').textContent = data.balance;
+            document.getElementById('sStatus').textContent = data.status || 'ACTIVE';
+
+            showWdMessage(`₹${amount} withdrawn successfully.`);
+            wdForm.reset();
+        } catch (err) {
+            showWdMessage('Error calling withdraw API: ' + err, true);
+        }
+    });
+</script>
+
+</body>
+</html>

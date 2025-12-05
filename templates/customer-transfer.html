@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Fund Transfer</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+
+		<!-- TOP RIGHT LOGOUT BUTTON -->
+		<div class="top-right-logout">
+			<button id="logoutBtn" class="logout-btn">Logout</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Fund Transfer</h1>
+				<p class="tagline">Send money between MyFin accounts</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="trMessage" class="message"></div>
+
+			<form id="transferForm" class="form-vertical">
+				<label>From Account ID <input type="number"
+					id="fromAccountId" placeholder="Your account ID" required>
+				</label> <label>To Account ID <input type="number" id="toAccountId"
+					placeholder="Receiver account ID" required>
+				</label> <label>Amount <input type="number" id="amount" step="0.01"
+					placeholder="Amount in INR" required>
+				</label>
+				<button type="submit" class="btn primary full-width">Transfer</button>
+			</form>
+
+			<section class="summary-card" style="margin-top: 16px;">
+				<h3>Last transfer summary</h3>
+				<div id="summaryEmpty">No transfer performed yet.</div>
+				<div id="summaryData" style="display: none;">
+					<p>
+						<strong>From Account ID:</strong> <span id="sFromId"></span>
+					</p>
+					<p>
+						<strong>To Account ID:</strong> <span id="sToId"></span>
+					</p>
+					<p>
+						<strong>Amount:</strong> ₹ <span id="sAmount"></span>
+					</p>
+					<p>
+						<strong>Status:</strong> <span id="sStatus">SUCCESS</span>
+					</p>
+				</div>
+			</section>
+
+			<div class="small-footer-links">
+				<a href="/customer/accounts">← Back to Dashboard</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+    const baseUrl = 'http://localhost:8081';
+
+    // ---- Logout setup ----
+    async function doLogout() {
+        try {
+            await fetch(baseUrl + '/customers/logout', { method: 'POST' });
+        } catch (e) {
+            // ignore error
+        }
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('customerId');
+        window.location.href = '/home';
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', doLogout);
+    }
+
+    // ---- Transfer logic ----
+    const trMsg = document.getElementById('trMessage');
+    const trForm = document.getElementById('transferForm');
+
+    function showTrMessage(text, isError = false) {
+        trMsg.textContent = text;
+        trMsg.style.color = isError ? 'red' : 'green';
+    }
+
+    trForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            showTrMessage('Please login again. Token not found.', true);
+            return;
+        }
+
+        const fromId = document.getElementById('fromAccountId').value;
+        const toId = document.getElementById('toAccountId').value;
+        const amount = document.getElementById('amount').value;
+
+        if (!fromId || !toId || !amount || Number(amount) <= 0) {
+            showTrMessage('Enter valid from / to account IDs and positive amount.', true);
+            return;
+        }
+
+        const payload = {
+            fromAccountId: Number(fromId),
+            toAccountId: Number(toId),
+            amount: Number(amount)
+        };
+
+        try {
+            const res = await fetch(baseUrl + '/accounts/transfer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                showTrMessage('Transfer failed: ' + err, true);
+                return;
+            }
+
+            // Controller returns 200 with empty body -> just show success
+            document.getElementById('summaryEmpty').style.display = 'none';
+            document.getElementById('summaryData').style.display = 'block';
+
+            document.getElementById('sFromId').textContent = fromId;
+            document.getElementById('sToId').textContent = toId;
+            document.getElementById('sAmount').textContent = amount;
+            document.getElementById('sStatus').textContent = 'SUCCESS';
+
+            showTrMessage(`₹${amount} transferred successfully.`);
+            trForm.reset();
+        } catch (err) {
+            showTrMessage('Error calling transfer API: ' + err, true);
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Customer Login</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Customer Login</h1>
+				<p class="tagline">Sign in to your MyFin account</p>
+			</div>
+		</header>
+
+		<main>
+			<form id="loginForm" class="form-vertical">
+				<label>Email <input type="email" name="email" required>
+				</label> <label>Password <input type="password" name="password"
+					required>
+				</label>
+				<button type="submit" class="btn secondary full-width">Login</button>
+			</form>
+
+			<div id="loginMessage" class="message"></div>
+
+			<div class="small-footer-links">
+				<a href="/home">Back to Home</a>
+			</div>
+
+
+			<p class="token-label">JWT Token (for testing):</p>
+			<textarea id="tokenBox" rows="3" readonly></textarea>
+		</main>
+	</div>
+
+	<script>
+    const baseUrl = 'http://localhost:8081';
+    const msg = document.getElementById('loginMessage');
+    const tokenBox = document.getElementById('tokenBox');
+
+    function showLoginMessage(text, isError = false) {
+        msg.textContent = text;
+        msg.style.color = isError ? 'red' : 'green';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const params = new URLSearchParams();
+        params.append('email', form.email.value);
+        params.append('password', form.password.value);
+
+        try {
+            const res = await fetch(baseUrl + '/customers/login?' + params.toString(), {
+                method: 'POST'
+            });
+            if (!res.ok) {
+                const err = await res.text();
+                showLoginMessage('Login failed: ' + err, true);
+                return;
+            }
+            const data = await res.json();
+            const token = data.token;
+            localStorage.setItem('jwtToken', token);
+
+            // token box lo display (testing kosam)
+            tokenBox.value = token;
+
+            // message chupinchi, immediate redirect to accounts page
+            msg.textContent = 'Login successful. Redirecting to your accounts...';
+            msg.style.color = 'green';
+
+            setTimeout(() => {
+                window.location.href = '/customer/accounts';
+            }, 800);   // 0.8 seconds delay just to show message
+
+
+
+        } catch (err) {
+            showLoginMessage('Error calling login API: ' + err, true);
+        }
+    });
+</script>
+
+</body>
+</html>

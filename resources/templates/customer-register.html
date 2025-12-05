@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Open Account</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Open Your MyFin Account</h1>
+				<p class="tagline">New customer registration</p>
+			</div>
+		</header>
+
+		<main>
+			<form id="registerForm" class="form-vertical">
+				<label>Full Name <input type="text" name="fullName" required>
+				</label> <label>Email <input type="email" name="email" required>
+				</label> <label>Password <input type="password" name="password"
+					required>
+				</label> <label>Mobile <input type="text" name="mobile" required>
+				</label> <label>Address <input type="text" name="address" required>
+				</label>
+
+				<button type="submit" class="btn primary full-width">Open
+					Account / Register</button>
+			</form>
+
+			<div id="registerMessage" class="message"></div>
+
+			<div class="small-footer-links">
+				<a href="/customer/login">Already a customer? Login</a> <span>·</span>
+				<a href="/home">Back to Home</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+    const baseUrl = 'http://localhost:8081';
+    const regMsg = document.getElementById('registerMessage');
+
+    function showRegisterMessage(text, isError = false) {
+        regMsg.textContent = text;
+        regMsg.style.color = isError ? 'red' : 'green';
+    }
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const payload = {
+        	    name: form.fullName.value,
+        	    email: form.email.value,
+        	    password: form.password.value,
+        	    mobile: form.mobile.value,
+        	    address: form.address.value
+        	};
+
+
+        try {
+            const res = await fetch(baseUrl + '/customers/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const err = await res.text();
+                showRegisterMessage('Registration failed: ' + err, true);
+                return;
+            }
+            const data = await res.json();
+
+         // success message + button HTML
+         regMsg.innerHTML =
+             '<span style="color: green;">Your account has been created successfully.</span>' +
+             ' <button id="goLoginBtn" class="btn secondary" style="margin-left:8px;padding:4px 10px;font-size:12px;">Go to Login</button>';
+
+         form.reset();
+
+         // button click -> customer login page
+         document.getElementById('goLoginBtn').addEventListener('click', () => {
+             window.location.href = '/customer/login';
+         });
+
+        } catch (err) {
+            showRegisterMessage('Error calling register API: ' + err, true);
+        }
+    });
+</script>
+
+</body>
+</html>

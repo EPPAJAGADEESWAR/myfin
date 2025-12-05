@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Customer Dashboard</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper dashboard-card">
+
+		<!-- TOP RIGHT LOGOUT BUTTON -->
+		<div class="top-right-logout">
+			<button id="logoutBtn" class="logout-btn">Logout</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">MyFin Dashboard</h1>
+				<p class="tagline">Choose an action to continue</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="accMessage" class="message"></div>
+
+			<section class="upi-grid">
+				<div class="upi-tile deposit">
+					<div class="tile-main">
+						<h2>Deposit</h2>
+						<p>Add money to your account</p>
+					</div>
+				</div>
+
+
+				<div class="upi-tile withdraw">
+					<h2>Withdraw</h2>
+					<p>Take money from your account</p>
+				</div>
+				<div class="upi-tile transfer">
+					<h2>Transfer</h2>
+					<p>Send money to another account</p>
+				</div>
+				<div class="upi-tile loan">
+					<h2>Loan</h2>
+					<p>Apply / view loan details</p>
+				</div>
+				<div class="upi-tile history">
+					<h2>Transactions</h2>
+					<p>View transaction history</p>
+				</div>
+				<div class="upi-tile deposit-fixed">
+					<h2>Fixed / RD</h2>
+					<p>Manage deposits</p>
+				</div>
+				<!-- NEW: Support / Chat tile -->
+				<div class="upi-tile support-chat">
+					<h2>Support / Chat</h2>
+					<p>Chat with bank admin</p>
+				</div>
+				<div class="upi-tile check-balance">
+					<h2>Check balance</h2>
+					<p>View your current balance</p>
+				</div>
+
+			</section>
+
+			<div class="small-footer-links">
+				<a href="/home">Back to Home</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+    const baseUrl = 'http://localhost:8081';
+
+    // ---- Logout setup ----
+    async function doLogout() {
+        try {
+            await fetch(baseUrl + '/customers/logout', { method: 'POST' });
+        } catch (e) {
+            // ignore error
+        }
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('customerId');
+        window.location.href = '/home';
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', doLogout);
+    }
+
+    // ---- Token check ----
+    const token = localStorage.getItem('jwtToken');
+    const msg = document.getElementById('accMessage');
+    if (!token) {
+        msg.textContent = 'Please login again. Token not found.';
+        msg.style.color = 'red';
+    }
+
+    // Tile click handlers
+    const depositTile = document.querySelector('.upi-tile.deposit');
+    if (depositTile) {
+        depositTile.addEventListener('click', () => {
+            window.location.href = '/customer/deposit';
+        });
+    }
+
+    const withdrawTile = document.querySelector('.upi-tile.withdraw');
+    if (withdrawTile) {
+        withdrawTile.addEventListener('click', () => {
+            window.location.href = '/customer/withdraw';
+        });
+    }
+
+    const transferTile = document.querySelector('.upi-tile.transfer');
+    if (transferTile) {
+        transferTile.addEventListener('click', () => {
+            window.location.href = '/customer/transfer';
+        });
+    }
+
+    const fixedTile = document.querySelector('.upi-tile.deposit-fixed');
+    if (fixedTile) {
+        fixedTile.addEventListener('click', () => {
+            window.location.href = '/customer/deposits';
+        });
+    }
+
+    const loanTile = document.querySelector('.upi-tile.loan');
+    if (loanTile) {
+        loanTile.addEventListener('click', () => {
+            window.location.href = '/customer/loan';
+        });
+    }
+
+    // NEW: Support / Chat tile navigation
+    const supportChatTile = document.querySelector('.upi-tile.support-chat');
+    if (supportChatTile) {
+        supportChatTile.addEventListener('click', () => {
+            window.location.href = '/support/chat';
+        });
+    }
+    
+    const checkBalanceTile = document.querySelector('.upi-tile.check-balance');
+    if (checkBalanceTile) {
+        checkBalanceTile.addEventListener('click', async () => {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const resp = await fetch(baseUrl + '/accounts/me/balance', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                if (!resp.ok) {
+                    alert('Could not fetch balance');
+                    return;
+                }
+                const balance = await resp.json(); // BigDecimal as number
+                alert('Your current balance is: ' + balance);
+            } catch (e) {
+                alert('Error while fetching balance');
+            }
+        });
+    }
+</script>
+
+</body>
+</html>

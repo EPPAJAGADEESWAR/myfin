@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Admin Customers</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+/* scrollable table area */
+.table-container {
+	max-height: 320px; /* roughly 10 rows */
+	overflow-y: auto;
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+}
+
+.simple-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.simple-table th, .simple-table td {
+	padding: 8px 12px;
+}
+
+.simple-table thead {
+	position: sticky;
+	top: 0;
+	background: #f9fafb;
+}
+</style>
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper wide-card">
+
+		<div class="top-right-logout">
+			<button id="backBtn" class="logout-btn">Back</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Customers</h1>
+				<p class="tagline">View and manage MyFin customers</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="msg" class="message"></div>
+
+			<!-- Search by customerId -->
+			<section class="summary-card" style="margin-top: 12px;">
+				<h3>Search customer</h3>
+				<form id="searchForm" class="form-inline">
+					<label> Customer ID <input type="number" id="searchId"
+						min="1" required>
+					</label>
+					<button type="submit" class="btn primary" style="margin-left: 8px;">Search</button>
+					<button type="button" id="clearSearch" class="btn secondary"
+						style="margin-left: 8px;">Clear</button>
+				</form>
+			</section>
+
+			<!-- Customer list (scrollable) -->
+			<section class="summary-card" style="margin-top: 12px;">
+				<h3>Customer list</h3>
+				<div class="table-container">
+					<table class="simple-table">
+						<thead>
+							<tr>
+								<th>ID</th>
+								<th>Name</th>
+								<th>Email</th>
+								<th>Mobile</th>
+								<th>Status</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody id="customersBody">
+							<tr>
+								<td colspan="6" style="text-align: center; color: #6b7280;">
+									Loading customers...</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+
+			<!-- Edit section (appears after selecting customer) -->
+			<section class="summary-card" style="margin-top: 16px;">
+				<h3>Edit customer</h3>
+				<div id="editInfo" class="message"></div>
+
+				<form id="editForm" class="form-vertical">
+					<input type="hidden" id="editId"> <label>Name <input
+						type="text" id="editName" required>
+					</label> <label>Email <input type="email" id="editEmail" required>
+					</label> <label>Mobile <input type="text" id="editMobile" required>
+					</label> <label>Address <input type="text" id="editAddress">
+					</label>
+
+					<button type="submit" class="btn primary">Save changes</button>
+				</form>
+			</section>
+
+		</main>
+	</div>
+
+	<script>
+    const adminBaseUrl = 'http://localhost:8082';
+    const customerBaseUrl = 'http://localhost:8081';
+
+    const msg = document.getElementById('msg');
+    const tbody = document.getElementById('customersBody');
+
+    const editId = document.getElementById('editId');
+    const editName = document.getElementById('editName');
+    const editEmail = document.getElementById('editEmail');
+    const editMobile = document.getElementById('editMobile');
+    const editAddress = document.getElementById('editAddress');
+    const editInfo = document.getElementById('editInfo');
+
+    const searchForm = document.getElementById('searchForm');
+    const searchIdInput = document.getElementById('searchId');
+    const clearSearchBtn = document.getElementById('clearSearch');
+
+    let allCustomers = []; // cache for search
+
+    function showMessage(text, isError = false) {
+        msg.textContent = text;
+        msg.style.color = isError ? 'red' : '#374151';
+    }
+
+    document.getElementById('backBtn').addEventListener('click', () => {
+        window.location.href = '/admin/dashboard';
+    });
+
+    // Load all customers once
+    async function loadCustomers() {
+        try {
+            const res = await fetch(customerBaseUrl + '/admin-api/customers');
+            if (!res.ok) {
+                showMessage('Failed to load customers: ' + res.status, true);
+                return;
+            }
+            const data = await res.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align:center; color:#6b7280;">
+                            No customers found.
+                        </td>
+                    </tr>`;
+                return;
+            }
+            allCustomers = data;
+            renderTable(allCustomers);
+        } catch (e) {
+            showMessage('Error loading customers: ' + e, true);
+        }
+    }
+
+    // Render given list into table body
+    function renderTable(list) {
+        tbody.innerHTML = '';
+        for (const c of list) {
+            const tr = document.createElement('tr');
+
+            const toggleLabel = c.status === 'ACTIVE' ? 'Deactivate' : 'Activate';
+            const nextStatus = c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+            tr.innerHTML = `
+                <td>${c.customerId}</td>
+                <td>${c.name}</td>
+                <td>${c.email}</td>
+                <td>${c.mobile}</td>
+                <td class="status-cell">${c.status}</td>
+                <td>
+                    <button class="btn secondary btn-toggle"
+                            data-id="${c.customerId}"
+                            data-next="${nextStatus}">
+                        ${toggleLabel}
+                    </button>
+                    <button class="btn secondary btn-edit"
+                            data-id="${c.customerId}">
+                        Edit
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    }
+
+    // Search by customerId (client-side filter)
+    searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = Number(searchIdInput.value);
+        if (!id) {
+            renderTable(allCustomers);
+            return;
+        }
+        const match = allCustomers.filter(c => c.customerId === id);
+        if (match.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align:center; color:#6b7280;">
+                        No customer found with ID ${id}.
+                    </td>
+                </tr>`;
+        } else {
+            renderTable(match);
+        }
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+        searchIdInput.value = '';
+        renderTable(allCustomers);
+        editForm.reset();
+        editId.value = '';
+        editInfo.textContent = '';
+    });
+
+    // Table clicks – status toggle or edit
+    tbody.addEventListener('click', async (e) => {
+        const toggleBtn = e.target.closest('.btn-toggle');
+        const editBtn = e.target.closest('.btn-edit');
+
+        // 1) Status toggle
+        if (toggleBtn) {
+            const id = toggleBtn.getAttribute('data-id');
+            const next = toggleBtn.getAttribute('data-next');
+            if (!confirm(`Change status to ${next} for customer ${id}?`)) {
+                return;
+            }
+            try {
+                const res = await fetch(
+                    customerBaseUrl + `/admin-api/customers/${id}/status?value=${next}`,
+                    { method: 'PUT' }
+                );
+                if (!res.ok) {
+                    showMessage('Failed to update status: ' + res.status, true);
+                    return;
+                }
+                const updated = await res.json();
+
+                // update cache
+                allCustomers = allCustomers.map(c =>
+                    c.customerId === updated.customerId ? updated : c
+                );
+
+                // update row
+                const row = toggleBtn.closest('tr');
+                row.querySelector('.status-cell').textContent = updated.status;
+
+                const newNext = updated.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+                toggleBtn.textContent = updated.status === 'ACTIVE' ? 'Deactivate' : 'Activate';
+                toggleBtn.setAttribute('data-next', newNext);
+
+                showMessage('Status updated successfully.');
+            } catch (err) {
+                showMessage('Error updating status: ' + err, true);
+            }
+            return;
+        }
+
+        // 2) Edit button: load values into form
+        if (editBtn) {
+            const id = Number(editBtn.getAttribute('data-id'));
+            const cust = allCustomers.find(c => c.customerId === id);
+            if (!cust) return;
+
+            editId.value = cust.customerId;
+            editName.value = cust.name || '';
+            editEmail.value = cust.email || '';
+            editMobile.value = cust.mobile || '';
+            editAddress.value = cust.address || '';
+
+            editInfo.textContent = `Editing customer #${cust.customerId}`;
+            editInfo.style.color = '#374151';
+        }
+    });
+
+    // Save changes – update customer details
+    const editForm = document.getElementById('editForm');
+    editForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const id = editId.value;
+        if (!id) {
+            editInfo.textContent = 'Select a customer (use Edit button).';
+            editInfo.style.color = 'red';
+            return;
+        }
+
+        const payload = {
+            name: editName.value,
+            email: editEmail.value,
+            mobile: editMobile.value,
+            address: editAddress.value
+        };
+
+        try {
+            const res = await fetch(
+                customerBaseUrl + `/admin-api/customers/${id}`,
+                {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }
+            );
+            if (!res.ok) {
+                editInfo.textContent = 'Update failed: ' + res.status;
+                editInfo.style.color = 'red';
+                return;
+            }
+
+            const updated = await res.json();
+
+            // update cache
+            allCustomers = allCustomers.map(c =>
+                c.customerId === updated.customerId ? updated : c
+            );
+
+            // reflect in currently shown table
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(r => {
+                if (r.children[0].textContent.trim() === String(updated.customerId)) {
+                    r.children[1].textContent = updated.name;
+                    r.children[2].textContent = updated.email;
+                    r.children[3].textContent = updated.mobile;
+                }
+            });
+
+            editInfo.textContent = 'Customer updated successfully.';
+            editInfo.style.color = 'green';
+        } catch (err) {
+            editInfo.textContent = 'Error: ' + err;
+            editInfo.style.color = 'red';
+        }
+    });
+
+    loadCustomers();
+</script>
+
+</body>
+</html>

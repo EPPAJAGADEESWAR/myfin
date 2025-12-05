@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Admin Dashboard</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper">
+
+		<div class="top-right-logout">
+			<button id="adminLogoutBtn" class="logout-btn">Logout</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Admin Dashboard</h1>
+				<p class="tagline">Monitor customers, accounts and loans</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="dashMsg" class="message"></div>
+
+			<section class="upi-grid">
+				<div class="upi-tile admin-customers">
+					<h2>Customers</h2>
+					<p>View / update customer status</p>
+				</div>
+				<div class="upi-tile admin-accounts">
+					<h2>Accounts</h2>
+					<p>Manage customer accounts</p>
+				</div>
+				<div class="upi-tile admin-loans">
+					<h2>Loans</h2>
+					<p>Approve or deny loans</p>
+				</div>
+				<div class="upi-tile admin-chats">
+					<h2>Chats</h2>
+					<p>Reply to customer queries</p>
+				</div>
+			</section>
+
+			<div class="small-footer-links">
+				<a href="http://localhost:8081/">← Back to Home</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+    // Simple guard: redirect to admin login if not logged in
+    if (localStorage.getItem('adminLoggedIn') !== 'true') {
+        window.location.href = '/admin/login';
+    }
+
+    const dashMsg = document.getElementById('dashMsg');
+
+    function showDashMessage(text) {
+        dashMsg.textContent = text;
+        dashMsg.style.color = '#374151';
+    }
+
+    const adminBaseUrl = 'http://localhost:8082';
+
+    // Logout
+    async function adminLogout() {
+        try {
+            await fetch(adminBaseUrl + '/admins/logout', { method: 'POST' });
+        } catch (e) {}
+        localStorage.removeItem('adminLoggedIn');
+        localStorage.removeItem('adminEmail');
+        window.location.href = '/admin/login';
+    }
+
+    const logoutBtn = document.getElementById('adminLogoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', adminLogout);
+    }
+
+    // Tile click handlers (navigation)
+    document.querySelector('.admin-customers')?.addEventListener('click', () => {
+        window.location.href = '/admin/customers';
+    });
+
+    document.querySelector('.admin-accounts')?.addEventListener('click', () => {
+        window.location.href = '/admin/accounts';
+    });
+
+    document.querySelector('.admin-loans')?.addEventListener('click', () => {
+        window.location.href = '/admin/loans';
+    });
+
+    document.querySelector('.admin-chats')?.addEventListener('click', () => {
+        window.location.href = '/admin/chats';
+    });
+</script>
+
+</body>
+</html>

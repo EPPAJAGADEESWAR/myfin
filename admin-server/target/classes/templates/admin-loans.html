@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Admin Loans</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+.table-container {
+	max-height: 320px;
+	overflow-y: auto;
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+}
+
+.simple-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.simple-table th, .simple-table td {
+	padding: 8px 12px;
+}
+
+.simple-table thead {
+	position: sticky;
+	top: 0;
+	background: #f9fafb;
+}
+</style>
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper wide-card">
+
+		<div class="top-right-logout">
+			<button id="backBtn" class="logout-btn">Back</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Loans</h1>
+				<p class="tagline">Approve or deny customer loans</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="msg" class="message"></div>
+
+			<section class="summary-card" style="margin-top: 12px;">
+				<h3>Pending loans</h3>
+				<div class="table-container">
+					<table class="simple-table">
+						<thead>
+							<tr>
+								<th>Loan ID</th>
+								<th>Customer</th>
+								<th>Account</th>
+								<th>Principal</th>
+								<th>Balance</th>
+								<th>Status</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody id="loansBody">
+							<tr>
+								<td colspan="7" style="text-align: center; color: #6b7280;">
+									Loading loans...</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<script>
+    const adminBaseUrl = 'http://localhost:8082';   // admin-server
+    const customerBaseUrl = 'http://localhost:8081';// customer-server
+
+    const msg = document.getElementById('msg');
+    const tbody = document.getElementById('loansBody');
+
+    function showMessage(text, isError = false) {
+        msg.textContent = text;
+        msg.style.color = isError ? 'red' : '#374151';
+    }
+
+    document.getElementById('backBtn').addEventListener('click', () => {
+        window.location.href = '/admin/dashboard';
+    });
+
+    async function loadPendingLoans() {
+        try {
+            const res = await fetch(customerBaseUrl + '/loans/admin/pending');
+            if (!res.ok) {
+                showMessage('Failed to load loans: ' + res.status, true);
+                return;
+            }
+            const data = await res.json();
+
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align:center; color:#6b7280;">
+                            No pending loans.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            for (const l of data) {
+                const tr = document.createElement('tr');
+
+                const customerName = l.customer ? l.customer.name : '';
+                const customerEmail = l.customer ? l.customer.email : '';
+                const accountNumber = l.account ? l.account.accountNumber : '';
+                const balance = l.account ? l.account.balance : '';
+
+                tr.innerHTML = `
+                    <td>${l.loanId}</td>
+                    <td>${customerName}<br/><small>${customerEmail}</small></td>
+                    <td>${accountNumber}</td>
+                    <td>${l.principal}</td>
+                    <td>${balance}</td>
+                    <td class="status-cell">${l.status}</td>
+                    <td>
+                        <button class="btn primary btn-approve" data-id="${l.loanId}">
+                            Approve
+                        </button>
+                        <button class="btn secondary btn-deny" data-id="${l.loanId}">
+                            Deny
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        } catch (e) {
+            showMessage('Error loading loans: ' + e, true);
+        }
+    }
+
+    // Handle Approve / Deny clicks
+    tbody.addEventListener('click', async (e) => {
+        const approveBtn = e.target.closest('.btn-approve');
+        const denyBtn = e.target.closest('.btn-deny');
+
+        if (!approveBtn && !denyBtn) return;
+
+        const id = (approveBtn || denyBtn).getAttribute('data-id');
+        const action = approveBtn ? 'approve' : 'deny';
+
+        if (!confirm(`Are you sure to ${action} loan #${id}?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(
+                customerBaseUrl + `/loans/${id}/${action}`,
+                { method: 'POST' }
+            );
+
+            if (!res.ok) {
+                const text = await res.text();
+                showMessage(`Failed to ${action} loan: ` + text, true);
+                return;
+            }
+
+            const updated = await res.json();
+
+            // Update row status or remove from list
+            const row = (approveBtn || denyBtn).closest('tr');
+            row.querySelector('.status-cell').textContent = updated.status;
+
+            // Since page shows only pending, remove row if not APPLIED
+            if (updated.status !== 'APPLIED') {
+                row.remove();
+            }
+
+            showMessage(`Loan #${id} ${updated.status.toLowerCase()} successfully.`);
+        } catch (err) {
+            showMessage(`Error while ${action} loan: ` + err, true);
+        }
+    });
+
+    loadPendingLoans();
+</script>
+
+</body>
+</html>

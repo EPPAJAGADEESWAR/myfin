@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Admin Login</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Admin Login</h1>
+				<p class="tagline">Manage customers, accounts and loans</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="adminMsg" class="message"></div>
+
+			<form id="adminLoginForm" class="form-vertical">
+				<label>Email <input type="email" id="adminEmail"
+					placeholder="admin@myfin.com" required>
+				</label> <label>Password <input type="password" id="adminPassword"
+					placeholder="Enter password" required>
+				</label>
+				<button type="submit" class="btn primary full-width">Login
+					as Admin</button>
+			</form>
+
+			<div class="small-footer-links">
+				<a href="http://localhost:8082/">← Back to Home</a> <span> |
+				</span> <a href="/admin/register">New admin? Register</a>
+			</div>
+
+		</main>
+	</div>
+
+	<script>
+    const adminBaseUrl = 'http://localhost:8082'; // admin-service port
+
+    const adminMsg = document.getElementById('adminMsg');
+
+    function showAdminMessage(text, isError = false) {
+        adminMsg.textContent = text;
+        adminMsg.style.color = isError ? 'red' : 'green';
+    }
+
+    document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = document.getElementById('adminEmail').value;
+        const password = document.getElementById('adminPassword').value;
+
+        if (!email || !password) {
+            showAdminMessage('Enter email and password.', true);
+            return;
+        }
+
+        try {
+            const params = new URLSearchParams();
+            params.append('email', email);
+            params.append('password', password);
+
+            const res = await fetch(adminBaseUrl + '/admins/login?' + params.toString(), {
+                method: 'POST'
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                showAdminMessage('Login failed: ' + err, true);
+                return;
+            }
+
+            // Simple session flag (later we can use JWT)
+            localStorage.setItem('adminLoggedIn', 'true');
+            localStorage.setItem('adminEmail', email);
+
+            showAdminMessage('Login successful.');
+            window.location.href = '/admin/dashboard';
+        } catch (err) {
+            showAdminMessage('Error calling admin login API: ' + err, true);
+        }
+    });
+</script>
+
+</body>
+</html>

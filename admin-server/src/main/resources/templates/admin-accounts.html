@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Admin Accounts</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+.table-container {
+	max-height: 320px;
+	overflow-y: auto;
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+}
+
+.simple-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.simple-table th, .simple-table td {
+	padding: 8px 12px;
+}
+
+.simple-table thead {
+	position: sticky;
+	top: 0;
+	background: #f9fafb;
+}
+</style>
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper wide-card">
+
+		<div class="top-right-logout">
+			<button id="backBtn" class="logout-btn">Back</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Accounts</h1>
+				<p class="tagline">View and manage customer accounts</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="msg" class="message"></div>
+
+			<!-- Search section -->
+			<section class="summary-card" style="margin-top: 12px;">
+				<h3>Search accounts</h3>
+				<form id="searchForm" class="form-inline">
+					<label> Customer ID <input type="number"
+						id="searchCustomerId" min="1">
+					</label>
+					<button type="submit" class="btn primary" style="margin-left: 8px;">Search</button>
+					<button type="button" id="clearSearch" class="btn secondary"
+						style="margin-left: 8px;">Clear</button>
+				</form>
+			</section>
+
+			<!-- Accounts list -->
+			<section class="summary-card" style="margin-top: 12px;">
+				<h3>Customer accounts</h3>
+				<div class="table-container">
+					<table class="simple-table">
+						<thead>
+							<tr>
+								<th>ID</th>
+								<th>Account No</th>
+								<th>Type</th>
+								<th>Customer</th>
+								<th>Balance</th>
+								<th>Status</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody id="accountsBody">
+							<tr>
+								<td colspan="7" style="text-align: center; color: #6b7280;">
+									Loading accounts...</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<script>
+    const adminBaseUrl = 'http://localhost:8082';
+    const customerBaseUrl = 'http://localhost:8081';
+
+    const msg = document.getElementById('msg');
+    const tbody = document.getElementById('accountsBody');
+
+    const searchForm = document.getElementById('searchForm');
+    const searchCustomerId = document.getElementById('searchCustomerId');
+    const clearSearchBtn = document.getElementById('clearSearch');
+
+    let allAccounts = [];
+
+    function showMessage(text, isError = false) {
+        msg.textContent = text;
+        msg.style.color = isError ? 'red' : '#374151';
+    }
+
+    document.getElementById('backBtn').addEventListener('click', () => {
+        window.location.href = '/admin/dashboard';
+    });
+
+    async function loadAccounts(customerId) {
+        try {
+            let url = customerBaseUrl + '/admin-api/accounts';
+            if (customerId) {
+                url += '?customerId=' + customerId;
+            }
+
+            const res = await fetch(url);
+            if (!res.ok) {
+                showMessage('Failed to load accounts: ' + res.status, true);
+                return;
+            }
+
+            const data = await res.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align:center; color:#6b7280;">
+                            No accounts found.
+                        </td>
+                    </tr>`;
+                allAccounts = [];
+                return;
+            }
+
+            allAccounts = data;
+            renderTable(allAccounts);
+        } catch (e) {
+            showMessage('Error loading accounts: ' + e, true);
+        }
+    }
+
+    function renderTable(list) {
+        tbody.innerHTML = '';
+        for (const a of list) {
+            const tr = document.createElement('tr');
+
+            const customerName = a.customer ? a.customer.name : '';
+            const customerId = a.customer ? a.customer.customerId : '';
+
+            const toggleLabel = a.status === 'ACTIVE' ? 'Block' : 'Activate';
+            const nextStatus = a.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
+
+            tr.innerHTML = `
+                <td>${a.accountId}</td>
+                <td>${a.accountNumber}</td>
+                <td>${a.accountType}</td>
+                <td>${customerName} (#${customerId})</td>
+                <td>${a.balance}</td>
+                <td class="status-cell">${a.status}</td>
+                <td>
+                    <button class="btn secondary btn-toggle"
+                            data-id="${a.accountId}"
+                            data-next="${nextStatus}">
+                        ${toggleLabel}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    }
+
+    // Search by customerId
+    searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const cid = searchCustomerId.value ? Number(searchCustomerId.value) : null;
+        loadAccounts(cid);
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+        searchCustomerId.value = '';
+        loadAccounts(null);
+    });
+
+    // Toggle status
+    tbody.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn-toggle');
+        if (!btn) return;
+
+        const id = btn.getAttribute('data-id');
+        const next = btn.getAttribute('data-next');
+
+        if (!confirm(`Change status to ${next} for account #${id}?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(
+                customerBaseUrl + `/admin-api/accounts/${id}/status?value=${next}`,
+                { method: 'PUT' }
+            );
+
+            if (!res.ok) {
+                showMessage('Failed to update status: ' + res.status, true);
+                return;
+            }
+
+            const updated = await res.json();
+
+            // update row
+            const row = btn.closest('tr');
+            row.querySelector('.status-cell').textContent = updated.status;
+
+            const newNext = updated.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
+            btn.textContent = updated.status === 'ACTIVE' ? 'Block' : 'Activate';
+            btn.setAttribute('data-next', newNext);
+
+            showMessage('Account status updated.');
+        } catch (err) {
+            showMessage('Error updating status: ' + err, true);
+        }
+    });
+
+    loadAccounts(null);
+</script>
+
+</body>
+</html>

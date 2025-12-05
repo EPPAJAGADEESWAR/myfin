@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyFin – Loan</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing-body">
+
+	<div class="landing-wrapper narrow-card">
+
+		<div class="top-right-logout">
+			<button id="logoutBtn" class="logout-btn">Logout</button>
+		</div>
+
+		<header class="landing-header">
+			<div class="logo-circle">MF</div>
+			<div>
+				<h1 class="bank-name">Loans</h1>
+				<p class="tagline">Calculate EMI and apply for a loan</p>
+			</div>
+		</header>
+
+		<main>
+			<div id="loanMessage" class="message"></div>
+
+			<!-- EMI calculator -->
+			<section class="summary-card">
+				<h3>EMI calculator (preview)</h3>
+				<form id="emiForm" class="form-vertical">
+					<label>Loan Amount (₹) <input type="number" id="emiAmount"
+						step="0.01" placeholder="e.g. 100000" required>
+					</label> <label>Annual Interest Rate (%) <input type="number"
+						id="emiRate" step="0.1" placeholder="e.g. 12" required>
+					</label> <label>Tenure (months) <input type="number" id="emiMonths"
+						placeholder="e.g. 24" required>
+					</label>
+					<button type="submit" class="btn secondary full-width">Calculate
+						EMI (approx)</button>
+				</form>
+				<p id="emiResult"
+					style="margin-top: 8px; font-size: 13px; color: #374151;"></p>
+			</section>
+
+			<!-- Apply for loan -->
+			<section style="margin-top: 16px;">
+				<h3>Apply for loan</h3>
+				<form id="applyForm" class="form-vertical">
+					<label>Account ID <input type="number" id="accId"
+						placeholder="Linked account ID" required>
+					</label> <label>Loan Amount (₹) <input type="number"
+						id="loanAmount" step="0.01" placeholder="e.g. 100000" required>
+					</label> <label>Annual Interest Rate (%) <input type="number"
+						id="loanRate" step="0.1" placeholder="e.g. 12" required>
+					</label> <label>Tenure (months) <input type="number"
+						id="loanMonths" placeholder="e.g. 24" required>
+					</label> <label>Purpose / Remarks <input type="text"
+						id="loanPurpose" placeholder="e.g. Home renovation" required>
+					</label>
+					<button type="submit" class="btn primary full-width">Submit
+						Loan Application</button>
+				</form>
+
+				<section class="summary-card" style="margin-top: 12px;">
+					<h3>Latest loan application</h3>
+					<div id="loanSummaryEmpty">No loan applied yet.</div>
+					<div id="loanSummaryData" style="display: none;">
+						<p>
+							<strong>Loan ID:</strong> <span id="sLoanId"></span>
+						</p>
+						<p>
+							<strong>Account ID:</strong> <span id="sLoanAccId"></span>
+						</p>
+						<p>
+							<strong>Principal:</strong> ₹ <span id="sPrincipal"></span>
+						</p>
+						<p>
+							<strong>Rate:</strong> <span id="sLoanRate"></span>%
+						</p>
+						<p>
+							<strong>Tenure:</strong> <span id="sLoanMonths"></span> months
+						</p>
+						<p>
+							<strong>Status:</strong> <span id="sLoanStatus"></span>
+						</p>
+					</div>
+				</section>
+			</section>
+
+			<div class="small-footer-links">
+				<a href="/customer/accounts">← Back to Dashboard</a>
+			</div>
+		</main>
+	</div>
+
+	<script>
+    const baseUrl = 'http://localhost:8081';
+
+    // ---- Logout ----
+    async function doLogout() {
+        try {
+            await fetch(baseUrl + '/customers/logout', { method: 'POST' });
+        } catch (e) {}
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('customerId');
+        window.location.href = '/home';
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', doLogout);
+    }
+
+    const loanMsg = document.getElementById('loanMessage');
+
+    function showLoanMessage(text, isError = false) {
+        loanMsg.textContent = text;
+        loanMsg.style.color = isError ? 'red' : 'green';
+    }
+
+    // ---- Simple front-end EMI preview (without saving) ----
+    document.getElementById('emiForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const P = Number(document.getElementById('emiAmount').value);
+        const annualRate = Number(document.getElementById('emiRate').value);
+        const n = Number(document.getElementById('emiMonths').value);
+
+        if (!P || !annualRate || !n || P <= 0 || annualRate <= 0 || n <= 0) {
+            document.getElementById('emiResult').textContent = 'Enter valid values for amount, rate and tenure.';
+            return;
+        }
+
+        const r = annualRate / (12 * 100); // monthly rate
+        const pow = Math.pow(1 + r, n);
+        const emi = (P * r * pow) / (pow - 1);
+
+        document.getElementById('emiResult').textContent =
+            'Approx EMI: ₹' + emi.toFixed(2) + ' per month.';
+    });
+
+ // ---- Apply for loan (calls /loans/apply and then /loans/{id}/emi) ----
+    document.getElementById('applyForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            showLoanMessage('Please login again. Token not found.', true);
+            return;
+        }
+
+        const accountId = document.getElementById('accId').value;
+        const amount = document.getElementById('loanAmount').value;
+        const rate = document.getElementById('loanRate').value;
+        const months = document.getElementById('loanMonths').value;
+
+        if (!accountId || !amount || !rate || !months) {
+            showLoanMessage('Fill all loan fields.', true);
+            return;
+        }
+
+        const payload = {
+            accountId: Number(accountId),
+            principal: Number(amount),
+            annualInterestRate: Number(rate),
+            tenureMonths: Number(months)
+        };
+
+        try {
+            // 1) Apply loan
+            const res = await fetch(baseUrl + '/loans/apply', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                showLoanMessage('Loan apply failed: ' + err, true);
+                return;
+            }
+
+            const loan = await res.json(); // Loan entity
+
+            // 2) Call EMI endpoint to calculate & store EMI
+            let emiValue = '';
+            try {
+                const emiRes = await fetch(baseUrl + `/loans/${loan.id}/emi`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                if (emiRes.ok) {
+                    emiValue = await emiRes.text();
+                }
+            } catch (e2) {
+                // ignore EMI failure, still show loan data
+            }
+
+            document.getElementById('loanSummaryEmpty').style.display = 'none';
+            document.getElementById('loanSummaryData').style.display = 'block';
+
+            document.getElementById('sLoanId').textContent = loan.id;
+            document.getElementById('sLoanAccId').textContent = loan.accountId || accountId;
+            document.getElementById('sPrincipal').textContent = loan.principal || amount;
+            document.getElementById('sLoanRate').textContent = loan.annualInterestRate || rate;
+            document.getElementById('sLoanMonths').textContent = loan.tenureMonths || months;
+            //document.getElementById('sEmi').textContent = loan.emiAmount || emiValue || '-';
+            document.getElementById('sLoanStatus').textContent = loan.status || 'PENDING';
+
+            showLoanMessage('Loan application submitted successfully.');
+            document.getElementById('applyForm').reset();
+        } catch (err) {
+            showLoanMessage('Error calling loan API: ' + err, true);
+        }
+    });
+
+</script>
+
+</body>
+</html>
